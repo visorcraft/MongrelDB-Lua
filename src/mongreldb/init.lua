@@ -193,6 +193,13 @@ local function http_request(base_url, method, path, headers, body)
   local status_line = raw:match("^HTTP/%d%.%d (%d+) ")
   local status = tonumber(status_line) or 0
   local resp_body = raw:sub(body_start)
+  -- Cap the response body at 256 MB so a runaway query or a misbehaving
+  -- daemon cannot exhaust memory.
+  local max_bytes = 256 * 1024 * 1024 -- 268435456 bytes
+  if #resp_body > max_bytes then
+    error(make_error(M.errors.query,
+      "response body exceeds " .. max_bytes .. " bytes (" .. #resp_body .. " bytes)"), 2)
+  end
   return status, resp_body
 end
 
@@ -375,10 +382,11 @@ function Client:deleteByPk(table_name, pk)
   })
 end
 
---- Execute SQL. Returns decoded rows when the daemon answers in JSON,
---- otherwise an empty table.
+--- Execute SQL. Requests the JSON result format, so a SELECT returns a JSON
+--- array of row objects keyed by column name. Returns decoded rows for SELECTs,
+--- or an empty table for statements (INSERT/UPDATE) that produce no rows.
 function Client:sql(statement)
-  local data = self:_post("sql", { sql = statement })
+  local data = self:_post("sql", { sql = statement, format = "json" })
   if type(data) == "table" then return data end
   return {}
 end
