@@ -6,35 +6,54 @@
 --   lua examples/basic_crud.lua
 --
 -- Requires a running mongreldb-server on http://127.0.0.1:8453.
+
+-- Make `require("mongreldb")` resolve when running the example directly with
+-- `lua examples/basic_crud.lua` from the repo root (no luarocks install of the
+-- client needed). src/mongreldb/init.lua matches both patterns below.
+package.path = package.path .. ";./src/?.lua;./src/?/init.lua"
+
 local mongreldb = require("mongreldb")
 
 local db = mongreldb.connect("http://127.0.0.1:8453")
 
 print("health:", db:health())
 
--- Drop a leftover table if present, then create a fresh one.
-pcall(function() db:dropTable("demo") end)
+-- Per-run unique suffix so concurrent/CI runs never collide on a table name.
+local table_name = "lua_demo_" .. os.time()
 
-db:createTable("demo", {
-  { id = 1, name = "id", ty = "int64", primary_key = true, nullable = false },
-  { id = 2, name = "label", ty = "varchar", primary_key = false, nullable = false },
-  { id = 3, name = "amount", ty = "float64", primary_key = false, nullable = false },
-})
+-- Run the body in a protected call so the table is ALWAYS dropped, even on
+-- error. The cleanup pcall runs unconditionally afterward.
+local ok, err = pcall(function()
+  db:createTable(table_name, {
+    { id = 1, name = "id", ty = "int64", primary_key = true, nullable = false },
+    { id = 2, name = "label", ty = "varchar", primary_key = false, nullable = false },
+    { id = 3, name = "amount", ty = "float64", primary_key = false, nullable = false },
+  })
 
-db:put("demo", { [1] = 1, [2] = "first",  [3] = 10.0 })
-db:put("demo", { [1] = 2, [2] = "second", [3] = 20.0 })
-print("count:", db:count("demo"))
+  db:put(table_name, { [1] = 1, [2] = "first",  [3] = 10.0 })
+  db:put(table_name, { [1] = 2, [2] = "second", [3] = 20.0 })
+  print("count:", db:count(table_name))
 
--- Upsert: change the second row.
-db:upsert("demo", { [1] = 2, [2] = "second", [3] = 42.0 }, { [3] = 42.0 })
+  -- Upsert: change the second row.
+  db:upsert(table_name, { [1] = 2, [2] = "second", [3] = 42.0 }, { [3] = 42.0 })
 
--- Read it back via the query builder.
-local rows = db:query("demo", { mongreldb.condition("pk", { value = 2 }) })
-print("row 2:", #rows, "rows returned")
+  -- Read it back via the query builder.
+  local rows = db:query(table_name, { mongreldb.condition("pk", { value = 2 }) })
+  print("row 2:", #rows, "rows returned")
 
--- Batch delete in a transaction.
-db:transaction({
-  { delete_by_pk = { table = "demo", pk = 1 } },
-  { delete_by_pk = { table = "demo", pk = 2 } },
-})
-print("count after txn:", db:count("demo"))
+  -- Batch delete in a transaction.
+  db:transaction({
+    { delete_by_pk = { table = table_name, pk = 1 } },
+    { delete_by_pk = { table = table_name, pk = 2 } },
+  })
+  print("count after txn:", db:count(table_name))
+end)
+
+-- Guaranteed cleanup: drop the table even if the body errored.
+pcall(function() db:dropTable(table_name) end)
+print("dropped:", table_name)
+
+if not ok then
+  io.stderr:write("error: ", tostring(err), "\n")
+  os.exit(1)
+end

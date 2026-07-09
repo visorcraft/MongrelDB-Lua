@@ -134,8 +134,17 @@ else
     db:put(table, { [1] = 3, [2] = "c", [3] = 90.0 })
     db:put(table, { [1] = 4, [2] = "d", [3] = 100.0 })
     -- Only scores >= 80 should come back (90 and 100) - assert the count.
+    -- The `amount` column is float64, so use `range_f64` (plain `range`
+    -- expects an i64 bound and rejects floats). range_f64 requires both
+    -- bounds (min/max) and the inclusivity flags (min_inclusive/max_inclusive).
     local rows = db:query(table, {
-      mongreldb.condition("range", { column = 3, min = 80.0 }),
+      mongreldb.condition("range_f64", {
+        column = 3,
+        min = 80.0,
+        max = 200.0,
+        min_inclusive = true,
+        max_inclusive = true,
+      }),
     })
     assert_equal(#rows, 2, "range query should return 2 rows")
   end)
@@ -157,16 +166,19 @@ else
     local db = mongreldb.connect(SERVER_URL)
     local table = "lua_idem_" .. unique
     db:createTable(table, columns)
+    -- Idempotency key must be unique per run so a stale key from an earlier
+    -- run can't be replayed against this table.
+    local key = "order-100-create-" .. unique
     -- First idempotent commit inserts the row.
     db:transaction({
       { put = { table = table, cells = { 1, 100, 2, "order", 3, 1.0 } } },
-    }, "order-100-create")
+    }, key)
     assert_equal(db:count(table), 1)
     -- A second, identical commit with the SAME key must not duplicate it.
     pcall(function()
       db:transaction({
         { put = { table = table, cells = { 1, 100, 2, "order", 3, 1.0 } } },
-      }, "order-100-create")
+      }, key)
     end)
     assert_equal(db:count(table), 1)
   end)
