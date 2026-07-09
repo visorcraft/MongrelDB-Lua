@@ -125,6 +125,52 @@ else
     assert_equal(db:count(table), 2)
   end)
 
+  check("range query returns only rows within the bounds", function()
+    local db = mongreldb.connect(SERVER_URL)
+    local table = "lua_range_" .. unique
+    db:createTable(table, columns)
+    db:put(table, { [1] = 1, [2] = "a", [3] = 50.0 })
+    db:put(table, { [1] = 2, [2] = "b", [3] = 75.0 })
+    db:put(table, { [1] = 3, [2] = "c", [3] = 90.0 })
+    db:put(table, { [1] = 4, [2] = "d", [3] = 100.0 })
+    -- Only scores >= 80 should come back (90 and 100) - assert the count.
+    local rows = db:query(table, {
+      mongreldb.condition("range", { column = 3, min = 80.0 }),
+    })
+    assert_equal(#rows, 2, "range query should return 2 rows")
+  end)
+
+  check("schemaFor on nonexistent table raises not_found", function()
+    local db = mongreldb.connect(SERVER_URL)
+    local caught
+    local ok, err = pcall(function()
+      db:schemaFor("nonexistent_table_xyz")
+    end)
+    if not ok then caught = err end
+    assert_equal(type(caught) == "table", true,
+      "schemaFor on missing table should raise a typed error")
+    assert_equal(caught.type, mongreldb.errors.not_found,
+      "error type should be not_found")
+  end)
+
+  check("idempotent transaction does not duplicate the row", function()
+    local db = mongreldb.connect(SERVER_URL)
+    local table = "lua_idem_" .. unique
+    db:createTable(table, columns)
+    -- First idempotent commit inserts the row.
+    db:transaction({
+      { put = { table = table, cells = { 1, 100, 2, "order", 3, 1.0 } } },
+    }, "order-100-create")
+    assert_equal(db:count(table), 1)
+    -- A second, identical commit with the SAME key must not duplicate it.
+    pcall(function()
+      db:transaction({
+        { put = { table = table, cells = { 1, 100, 2, "order", 3, 1.0 } } },
+      }, "order-100-create")
+    end)
+    assert_equal(db:count(table), 1)
+  end)
+
   check("schema lists the created table", function()
     local db = mongreldb.connect(SERVER_URL)
     local table = "lua_schema_" .. unique
