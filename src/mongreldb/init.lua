@@ -162,20 +162,23 @@ local function http_request(base_url, method, path, headers, body)
   conn:close()
 
   local raw = table.concat(response)
-  -- Split status line / headers / body on the first blank line.
-  local header_end = raw:find("\r\n\r\n", 1, true)
-  if not header_end then
-    header_end = raw:find("\n\n", 1, true)
-    if not header_end then
+  -- Split status line / headers / body on the first blank line. find() returns
+  -- start and end byte positions of the separator, so the body starts one byte
+  -- past the end position. Handle both CRLF and bare-LF blank lines.
+  local sep_start, sep_end = raw:find("\r\n\r\n", 1, true)
+  local body_start
+  if sep_start then
+    body_start = sep_end + 1
+  else
+    sep_start = raw:find("\n\n", 1, true)
+    if not sep_start then
       error(make_error(M.errors.query, "malformed HTTP response"), 2)
     end
-    header_end = header_end + 1
-  else
-    -- keep body start after the \r\n\r\n
+    body_start = sep_start + 2
   end
   local status_line = raw:match("^HTTP/%d%.%d (%d+) ")
   local status = tonumber(status_line) or 0
-  local resp_body = raw:sub(header_end + (raw:find("\r\n\r\n", 1, true) and 4 or 2))
+  local resp_body = raw:sub(body_start)
   return status, resp_body
 end
 
@@ -356,7 +359,7 @@ function Client:query(table_name, conditions, opts)
   opts = opts or {}
   local payload = { table = table_name }
   if conditions and #conditions > 0
-     and not (next(conditions) == nil) then
+     and next(conditions) ~= nil then
     payload.conditions = conditions
   end
   if opts.projection then payload.projection = opts.projection end

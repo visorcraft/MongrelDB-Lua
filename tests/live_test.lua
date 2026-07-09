@@ -102,12 +102,17 @@ else
     local db = mongreldb.connect(SERVER_URL)
     local table = "lua_txn_" .. unique
     db:createTable(table, columns)
-    local ops = {
+    -- Stage and commit the puts first. Rows inserted in a batch are not yet
+    -- visible to a delete_by_pk within the same batch (the delete runs against
+    -- the pre-commit state and returns "not_found"), so the delete has to land
+    -- in its own transaction once the puts are committed.
+    db:transaction({
       { put = { table = table, cells = { 1, 10, 2, "dave", 3, 50.0 } } },
       { put = { table = table, cells = { 1, 11, 2, "eve", 3, 75.0 } } },
+    })
+    db:transaction({
       { delete_by_pk = { table = table, pk = 10 } },
-    }
-    db:transaction(ops)
+    })
     assert_equal(db:count(table), 1)
   end)
 
