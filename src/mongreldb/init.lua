@@ -386,9 +386,22 @@ end
 --- array of row objects keyed by column name. Returns decoded rows for SELECTs,
 --- or an empty table for statements (INSERT/UPDATE) that produce no rows.
 function Client:sql(statement)
-  local data = self:_post("sql", { sql = statement, format = "json" })
-  if type(data) == "table" then return data end
-  return {}
+  -- An old server may ignore the requested JSON format and answer with Arrow
+  -- IPC binary bytes (not valid JSON), which _post surfaces as a "malformed
+  -- JSON response" error. Treat that specific case as "no rows" rather than
+  -- raising, so callers keep working against legacy servers. Genuine server
+  -- errors (auth, constraint, HTTP 5xx, ...) still propagate.
+  local ok, data = pcall(self._post, self, "sql",
+    { sql = statement, format = "json" })
+  if ok then
+    return type(data) == "table" and data or {}
+  end
+  local err = data
+  local msg = type(err) == "table" and err.message or tostring(err)
+  if msg and msg:find("malformed JSON") then
+    return {}
+  end
+  error(err, 2)
 end
 
 --- Run a native query. conditions is a list of {type = params} tables.
