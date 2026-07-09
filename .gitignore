@@ -1,0 +1,31 @@
+# Lua build artifacts
+*.lc
+*.o
+*.so
+*.a
+
+# LuaRocks
+.luarocks/
+lua_modules/
+
+# Compiled rocks
+*.rock
+*.src.rock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Agent / assistant instruction files are workspace-local, never published
+AGENTS.md
+CLAUDE.md
+.cursorrules
+.zcode/

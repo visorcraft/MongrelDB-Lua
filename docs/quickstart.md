@@ -1,0 +1,70 @@
+# Quickstart
+
+This guide walks through installing the MongrelDB Lua client, connecting to a
+running `mongreldb-server`, and doing your first round-trip of CRUD and query.
+
+## Prerequisites
+
+- Lua 5.3 or newer, or LuaJIT.
+- LuaSocket (`luarocks install luasocket`).
+- A running [`mongreldb-server`](https://github.com/visorcraft/MongrelDB)
+  daemon. The simplest start is the prebuilt Linux binary:
+
+  ```sh
+  curl -L -o mongreldb-server \
+    https://github.com/visorcraft/MongrelDB/releases/download/v0.44.1/mongreldb-server-linux-x64
+  chmod +x mongreldb-server
+  ./mongreldb-server ./data --port 8453
+  ```
+
+## Install
+
+Install via LuaRocks:
+
+```sh
+luarocks install mongreldb
+```
+
+The client has a single runtime dependency (LuaSocket) and ships a vendored
+JSON encoder, so there is no extra JSON library to install.
+
+## Connect
+
+```lua
+local mongreldb = require("mongreldb")
+local db = mongreldb.connect("http://127.0.0.1:8453")
+print(db:health()) -- true
+```
+
+## Create a table and insert rows
+
+```lua
+db:createTable("orders", {
+  { id = 1, name = "id",       ty = "int64",   primary_key = true,  nullable = false },
+  { id = 2, name = "customer", ty = "varchar", primary_key = false, nullable = false },
+  { id = 3, name = "amount",   ty = "float64", primary_key = false, nullable = false },
+})
+
+db:put("orders", { [1] = 1, [2] = "Alice", [3] = 99.50 })
+db:put("orders", { [1] = 2, [2] = "Bob",   [3] = 150.00 })
+
+print(db:count("orders")) -- 2
+```
+
+Cells are passed as a table mapping column id to value.
+
+## Run a query
+
+```lua
+local rows = db:query("orders", {
+  mongreldb.condition("pk", { value = 1 }),
+})
+```
+
+## Next steps
+
+- [Transactions](transactions.md) for atomic multi-op commits.
+- [Queries](queries.md) for the native index condition API.
+- [SQL](sql.md) for DataFusion-backed ad-hoc SQL.
+- [Auth](auth.md) for Bearer and Basic authentication.
+- [Errors](errors.md) for the exception hierarchy.

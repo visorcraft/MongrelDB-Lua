@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit (Lua ${{ matrix.lua }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 5.3 is the supported minimum; 5.4 and luajit cover the common runtimes.
+        lua: ['5.3', '5.4', 'luajit']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Lua ${{ matrix.lua }}
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: ${{ matrix.lua }}
+
+      - name: Set up LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Cache LuaRocks packages
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.luarocks
+          key: ${{ runner.os }}-lua-${{ matrix.lua }}-${{ hashFiles('*.rockspec') }}
+          restore-keys: ${{ runner.os }}-lua-${{ matrix.lua }}-
+
+      - name: Install dependencies
+        run: luarocks install luasocket
+
+      - name: Lint (luacheck)
+        uses: lunarmodules/luacheck@v1
+        with:
+          args: src tests
+
+      - name: Run unit tests
+        run: lua tests/json_test.lua
+
+  live:
+    # The layer that catches client/server contract drift. Downloads a
+    # mongreldb-server binary, starts it, and runs the live round-trip suite.
+    name: Live integration (against mongreldb-server)
+    runs-on: ubuntu-latest
+    env:
+      MONGRELDB_URL: http://127.0.0.1:8453
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Lua 5.4
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: '5.4'
+
+      - name: Set up LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Cache LuaRocks packages
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.luarocks
+          key: ${{ runner.os }}-lua-live-${{ hashFiles('*.rockspec') }}
+          restore-keys: ${{ runner.os }}-lua-live-
+
+      - name: Install dependencies
+        run: luarocks install luasocket
+
+      - name: Cache mongreldb-server binary
+        uses: actions/cache@v6
+        id: server-cache
+        with:
+          path: /tmp/mongreldb-server
+          key: mongreldb-server-${{ runner.os }}-0.44.1
+
+      - name: Download mongreldb-server
+        if: steps.server-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o /tmp/mongreldb-server \
+            https://github.com/visorcraft/MongrelDB/releases/download/v0.44.1/mongreldb-server-linux-x64
+          chmod +x /tmp/mongreldb-server
+
+      - name: Start mongreldb-server
+        run: |
+          rm -rf /tmp/mongreldb-data
+          /tmp/mongreldb-server /tmp/mongreldb-data --port 8453 > /tmp/mongreldb-server.log 2>&1 &
+          echo $! > /tmp/mongreldb-server.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8453/health >/dev/null 2>&1; then
+              echo "mongreldb-server is healthy"
+              break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8453/health >/dev/null || (cat /tmp/mongreldb-server.log && exit 1)
+
+      - name: Run live tests
+        env:
+          MONGRELDB_URL: http://127.0.0.1:8453
+        run: lua tests/live_test.lua
+
+      - name: Dump server log on failure
+        if: failure()
+        run: cat /tmp/mongreldb-server.log
+
+      - name: Stop mongreldb-server
+        if: always()
+        run: |
+          if [ -f /tmp/mongreldb-server.pid ]; then
+            kill "$(cat /tmp/mongreldb-server.pid)" 2>/dev/null || true
+          fi
