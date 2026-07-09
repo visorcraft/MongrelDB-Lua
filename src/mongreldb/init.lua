@@ -61,6 +61,20 @@ local function parse_error_envelope(body)
   return body, nil, nil
 end
 
+-- Percent-encode a single URL path segment so a table name containing '/',
+-- '?', '#', or CR/LF cannot inject extra path segments or header bytes.
+local function encode_path_segment(seg)
+  return url_parser.escape(tostring(seg))
+end
+
+-- Reject CR/LF in a string to prevent CRLF header injection.
+local function assert_no_crlf(value, field)
+  if value and (value:find("\r") or value:find("\n")) then
+    error(make_error(M.errors.query,
+      "illegal CR/LF in " .. field .. " value"), 2)
+  end
+end
+
 -- Flatten {col_id = value} into {col_id, value, col_id, value, ...}.
 -- Returns a sequential Lua array (1-indexed) ready for JSON encoding.
 local function cells_to_flat(cells)
@@ -197,8 +211,12 @@ function M.connect(url, opts)
   -- Precompute the Authorization header once.
   self._auth_header = nil
   if opts.token then
+    -- Reject CR/LF to prevent CRLF header injection.
+    assert_no_crlf(opts.token, "token")
     self._auth_header = "Bearer " .. opts.token
   elseif opts.username then
+    assert_no_crlf(opts.username, "username")
+    assert_no_crlf(opts.password, "password")
     -- Base64 encode the credentials inline (no mime dependency).
     local creds = opts.username .. ":" .. (opts.password or "")
     self._auth_header = "Basic " .. (M._base64(creds))
@@ -239,8 +257,9 @@ function M._base64(s)
   return table.concat(out)
 end
 
--- Core request helper. Returns the decoded JSON body (or nil). Raises an
--- error object of the appropriate kind for non-2xx or network failures.
+-- Core request helper. Returns the decoded JSON body (or nil for empty
+-- responses like 204). Raises an error object of the appropriate kind for
+-- non-2xx or network failures, and for a non-empty body that is not valid JSON.
 function Client:_request(method, path, body)
   local headers = {}
   if self._auth_header then
@@ -250,7 +269,16 @@ function Client:_request(method, path, body)
   local status, resp_body = http_request(self.url, method, path, headers, body)
 
   if status >= 200 and status < 300 then
-    return json.decode(resp_body)
+    -- Empty body (e.g. 204 No Content) is a valid "nothing to return".
+    if resp_body == nil or resp_body == "" then
+      return nil
+    end
+    local decoded, err = json.decode(resp_body)
+    if decoded == nil and err ~= nil then
+      error(make_error(M.errors.query,
+        "malformed JSON response: " .. tostring(err)), 2)
+    end
+    return decoded
   end
 
   local message, code, op_index = parse_error_envelope(resp_body)
@@ -293,14 +321,16 @@ end
 
 --- Drop a table by name.
 function Client:dropTable(name)
-  self:_request("DELETE", "tables/" .. name)
+  self:_request("DELETE", "tables/" .. encode_path_segment(name))
 end
 
 --- Row count for a table.
 function Client:count(table_name)
-  local data = self:_request("GET", "tables/" .. table_name .. "/count")
-  if type(data) == "table" then return data.count or 0 end
-  return 0
+  local data = self:_request("GET", "tables/" .. encode_path_segment(table_name) .. "/count")
+  if type(data) == "table" and type(data.count) == "number" then
+    return data.count
+  end
+  error(make_error(M.errors.query, "malformed count response"), 2)
 end
 
 --- Insert a row. cells maps column id to value ({[1] = 1, [2] = "Alice"}).
@@ -385,7 +415,7 @@ end
 
 --- Descriptor for a single table.
 function Client:schemaFor(table_name)
-  local data = self:_request("GET", "kit/schema/" .. table_name)
+  local data = self:_request("GET", "kit/schema/" .. encode_path_segment(table_name))
   if type(data) == "table" then return data end
   return {}
 end
