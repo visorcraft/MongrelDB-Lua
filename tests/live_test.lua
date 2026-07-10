@@ -88,13 +88,9 @@ else
     local rows = db:query(table, { mongreldb.condition("pk", { value = 2 }) })
     assert_equal(#rows >= 1, true, "query should return a row")
     -- The returned row must carry primary key 2. Confirm via SQL JSON mode,
-    -- where rows are keyed by column name. An old server ignores the requested
-    -- JSON format and answers with Arrow IPC bytes, so sql() returns {} - only
-    -- verify row content when JSON mode worked.
+    -- where rows are keyed by column name.
     local pk_rows = db:sql("SELECT id FROM " .. table .. " WHERE id = 2")
-    if #pk_rows >= 1 then
-      assert_equal(pk_rows[1].id, 2, "selected row id should be 2")
-    end
+    assert_equal(pk_rows[1].id, 2, "selected row id should be 2")
   end)
 
   check("upsert updates on PK conflict", function()
@@ -105,13 +101,9 @@ else
     db:upsert(table, { [1] = 1, [2] = "alpha", [3] = 99.0 }, { [3] = 99.0 })
     assert_equal(db:count(table), 1)
     -- Query the row back and verify the upserted value landed. SQL JSON mode
-    -- returns rows keyed by column name. An old server ignores the requested
-    -- JSON format and answers with Arrow IPC bytes, so sql() returns {} - only
-    -- verify row content when JSON mode worked.
+    -- returns rows keyed by column name.
     local rows = db:sql("SELECT amount FROM " .. table .. " WHERE id = 1")
-    if #rows >= 1 then
-      assert_equal(rows[1].amount, 99.0, "amount should be updated to 99.0")
-    end
+    assert_equal(rows[1].amount, 99.0, "amount should be updated to 99.0")
   end)
 
   check("transaction commits multiple ops atomically", function()
@@ -140,16 +132,11 @@ else
     db:sql("INSERT INTO " .. table .. " (id, label, amount) VALUES (2, 'beta', 2.0)")
     assert_equal(db:count(table), 2)
     -- JSON mode makes SELECT return rows as JSON objects (column names as
-    -- keys). Verify both rows come back with the right primary keys. An old
-    -- server ignores the requested JSON format and answers with Arrow IPC
-    -- bytes, so sql() returns {} - only verify row content when JSON mode
-    -- worked.
+    -- keys). Verify both rows come back with the right primary keys.
     local selected = db:sql("SELECT id FROM " .. table .. " ORDER BY id")
-    if #selected >= 1 then
-      assert_equal(#selected, 2, "sql SELECT should return both rows")
-      assert_equal(selected[1].id, 1, "first selected id should be 1")
-      assert_equal(selected[2].id, 2, "second selected id should be 2")
-    end
+    assert_equal(#selected, 2, "sql SELECT should return both rows")
+    assert_equal(selected[1].id, 1, "first selected id should be 1")
+    assert_equal(selected[2].id, 2, "second selected id should be 2")
   end)
 
   check("range query returns only rows within the bounds", function()
@@ -175,16 +162,11 @@ else
     })
     assert_equal(#rows, 2, "range query should return 2 rows")
     -- Only rows with id 3 (amount 90) and 4 (amount 100) qualify. Confirm
-    -- their exact PK values via SQL JSON mode (rows keyed by column name). An
-    -- old server ignores the requested JSON format and answers with Arrow IPC
-    -- bytes, so sql() returns {} - only verify row content when JSON mode
-    -- worked.
+    -- their exact PK values via SQL JSON mode (rows keyed by column name).
     local selected = db:sql("SELECT id FROM " .. table .. " WHERE amount >= 80.0 ORDER BY id")
-    if #selected >= 1 then
-      assert_equal(#selected, 2, "sql range should select 2 rows")
-      assert_equal(selected[1].id, 3, "first range id should be 3")
-      assert_equal(selected[2].id, 4, "second range id should be 4")
-    end
+    assert_equal(#selected, 2, "sql range should select 2 rows")
+    assert_equal(selected[1].id, 3, "first range id should be 3")
+    assert_equal(selected[2].id, 4, "second range id should be 4")
   end)
 
   check("schemaFor on nonexistent table raises not_found", function()
