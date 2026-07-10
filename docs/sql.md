@@ -11,9 +11,9 @@ db:sql("INSERT INTO orders (id, customer, amount) VALUES (99, 'Zoe', 999.0)")
 db:sql("CREATE TABLE archive AS SELECT * FROM orders WHERE amount > 500")
 ```
 
-The `/sql` endpoint may return Arrow IPC bytes for rich SELECTs. In that case
-`sql()` returns an empty table. For typed, JSON-shaped reads, prefer the native
-[query builder](queries.md).
+The client requests the JSON result format (`format: "json"`), so a SELECT
+returns its rows decoded into a Lua table. Statements that produce no rows
+(DDL/DML, or an empty result set) return an empty table.
 
 ## DataFusion features
 
