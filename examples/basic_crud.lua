@@ -28,14 +28,20 @@ local ok, err = pcall(function()
     { id = 1, name = "id", ty = "int64", primary_key = true, nullable = false },
     { id = 2, name = "label", ty = "varchar", primary_key = false, nullable = false },
     { id = 3, name = "amount", ty = "float64", primary_key = false, nullable = false },
+    -- Enum column: variants ride on the column descriptor, default_value
+    -- (server alias for default_expr) seeds new rows.
+    { id = 4, name = "status", ty = "enum",
+      enum_variants = { "active", "paused", "archived" },
+      default_value = "active" },
   })
 
-  db:put(table_name, { [1] = 1, [2] = "first",  [3] = 10.0 })
-  db:put(table_name, { [1] = 2, [2] = "second", [3] = 20.0 })
+  db:put(table_name, { [1] = 1, [2] = "first",  [3] = 10.0, [4] = "active" })
+  db:put(table_name, { [1] = 2, [2] = "second", [3] = 20.0, [4] = "paused" })
   print("count:", db:count(table_name))
 
   -- Upsert: change the second row.
-  db:upsert(table_name, { [1] = 2, [2] = "second", [3] = 42.0 }, { [3] = 42.0 })
+  db:upsert(table_name, { [1] = 2, [2] = "second", [3] = 42.0, [4] = "paused" },
+    { [3] = 42.0 })
 
   -- Read it back via the query builder.
   local rows = db:query(table_name, { mongreldb.condition("pk", { value = 2 }) })

@@ -58,14 +58,20 @@ db:createTable("orders", {
   { id = 1, name = "id",       ty = "int64",   primary_key = true,  nullable = false },
   { id = 2, name = "customer", ty = "varchar", primary_key = false, nullable = false },
   { id = 3, name = "amount",   ty = "float64", primary_key = false, nullable = false },
+  -- Enum columns carry their variants on the column descriptor, and a
+  -- default_value (server alias for default_expr) is also accepted.
+  { id = 4, name = "status",   ty = "enum",
+    enum_variants = { "active", "paused", "archived" },
+    default_value = "active" },
 })
 
 -- Insert rows. Cells map column id to value.
-db:put("orders", { [1] = 1, [2] = "Alice", [3] = 99.50 })
-db:put("orders", { [1] = 2, [2] = "Bob",   [3] = 150.00 })
+db:put("orders", { [1] = 1, [2] = "Alice", [3] = 99.50, [4] = "active" })
+db:put("orders", { [1] = 2, [2] = "Bob",   [3] = 150.00, [4] = "active" })
 
 -- Upsert (insert or update on PK conflict).
-db:upsert("orders", { [1] = 1, [2] = "Alice", [3] = 120.00 }, { [3] = 120.00 })
+db:upsert("orders", { [1] = 1, [2] = "Alice", [3] = 120.00, [4] = "active" },
+  { [3] = 120.00 })
 
 -- Query with a native index condition (learned-range index).
 local rows = db:query("orders", {
