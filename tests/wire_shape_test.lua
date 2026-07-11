@@ -78,6 +78,9 @@ check("createTable body preserves enum, static-default, and dynamic-default fiel
       ty = "int64",
       default_value = 3,
     },
+    { id = 5, name = "s", ty = "varchar", default_value = "draft" },
+    { id = 6, name = "b", ty = "bool", default_value = true },
+    { id = 7, name = "n", ty = "varchar", default_value = mongreldb.null },
   }
   local constraints = {
     checks = {
@@ -93,6 +96,9 @@ check("createTable body preserves enum, static-default, and dynamic-default fiel
     "default_value should preserve its numeric JSON type")
   assert_true(body:find('"default_expr":"now"') ~= nil,
     "default_expr should appear verbatim in the JSON body")
+  assert_true(body:find('"default_value":"draft"') ~= nil, "string default missing")
+  assert_true(body:find('"default_value":true') ~= nil, "bool default missing")
+  assert_true(body:find('"default_value":null') ~= nil, "null default missing")
   -- Values must also survive the round-trip.
   assert_true(body:find('"active"') ~= nil,
     "enum variant value should be present")

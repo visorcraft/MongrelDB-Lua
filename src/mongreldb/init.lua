@@ -20,6 +20,7 @@ local url_parser = require("socket.url")
 -- Exception table. Each is a plain table with .message and .type fields so
 -- callers can match by type without pcall gymnastics.
 local M = {}
+M.null = json.null
 
 M.errors = {
   -- Base. All other errors set their .type to one of these strings.
@@ -318,6 +319,26 @@ function Client:tableNames()
   if type(data) == "table" then return data end
   return {}
 end
+
+local function retention(data)
+  if type(data) ~= "table" or type(data.history_retention_epochs) ~= "number"
+      or type(data.earliest_retained_epoch) ~= "number" then
+    error(make_error(M.errors.query, "malformed history retention response"), 2)
+  end
+  return data
+end
+
+function Client:setHistoryRetentionEpochs(epochs)
+  return retention(self:_request("PUT", "history/retention",
+    assert(json.encode({ history_retention_epochs = epochs }))))
+end
+
+function Client:historyRetention()
+  return retention(self:_request("GET", "history/retention"))
+end
+
+function Client:historyRetentionEpochs() return self:historyRetention().history_retention_epochs end
+function Client:earliestRetainedEpoch() return self:historyRetention().earliest_retained_epoch end
 
 --- Build the JSON request body for `POST /kit/create_table`.
 -- Exposed on the module so wire-shape conformance tests can assert the

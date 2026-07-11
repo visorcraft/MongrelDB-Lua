@@ -6,6 +6,7 @@
 -- decoder is a tolerant recursive parser that accepts the daemon's responses.
 
 local json = {}
+json.null = setmetatable({}, { __tostring = function() return "null" end })
 
 -- Detect NaN without depending on math.huge comparisons elsewhere.
 local function is_nan(v)
@@ -19,6 +20,10 @@ end
 local encode_string
 
 local function encode_value(v, out)
+  if v == json.null then
+    table.insert(out, "null")
+    return
+  end
   local t = type(v)
   if t == "nil" then
     table.insert(out, "null")

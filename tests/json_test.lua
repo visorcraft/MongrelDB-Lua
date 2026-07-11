@@ -50,6 +50,10 @@ check("encode nil", function()
   assert_equal(json.encode(nil), "null")
 end)
 
+check("encode explicit null sentinel", function()
+  assert_equal(json.encode({ value = json.null }), '{"value":null}')
+end)
+
 check("encode array", function()
   local s = json.encode({ 1, 2, 3 })
   assert_equal(s, "[1,2,3]")

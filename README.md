@@ -4,6 +4,8 @@
 
 <h1 align="center">MongrelDB Lua Client</h1>
 
+History retention: `setHistoryRetentionEpochs`, `historyRetentionEpochs`, and `earliestRetainedEpoch`. Use `mongreldb.null` for explicit JSON null.
+
 <p align="center">
   <b>Pure Lua client for MongrelDB, embedded and server database with SQL, vector search, full-text search, and AI-native retrieval.</b>
 </p>
