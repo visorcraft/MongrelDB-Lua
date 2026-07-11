@@ -52,7 +52,9 @@ jobs:
           args: src tests
 
       - name: Run unit tests
-        run: lua tests/json_test.lua
+        run: |
+          lua tests/json_test.lua
+          lua tests/wire_shape_test.lua
 
   live:
     # The layer that catches client/server contract drift. Downloads a

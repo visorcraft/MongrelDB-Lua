@@ -54,6 +54,30 @@ check("encode explicit null sentinel", function()
   assert_equal(json.encode({ value = json.null }), '{"value":null}')
 end)
 
+check("explicit null sentinel is distinct from nil in encoded objects", function()
+  local body = json.encode({ a = json.null, b = "present" })
+  assert_equal(body:find('"a":null') ~= nil, true, "explicit null key should serialize")
+  assert_equal(body:find('"b":"present"') ~= nil, true, "string key should serialize")
+  -- A nil-valued key is dropped; an explicit null sentinel key is kept.
+  body = json.encode({ a = json.null, b = "present", c = nil })
+  assert_equal(body:find('"c"') == nil, true, "nil key should be omitted")
+end)
+
+check("static default scalars round-trip through encode/decode", function()
+  local defaults = {
+    string = "draft",
+    integer = 7,
+    boolean = true,
+    literal_now = "now",
+  }
+  local body = json.encode(defaults)
+  local decoded = json.decode(body)
+  assert_equal(decoded.string, "draft")
+  assert_equal(decoded.integer, 7)
+  assert_equal(decoded.boolean, true)
+  assert_equal(decoded.literal_now, "now")
+end)
+
 check("encode array", function()
   local s = json.encode({ 1, 2, 3 })
   assert_equal(s, "[1,2,3]")

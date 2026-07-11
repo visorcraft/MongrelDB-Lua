@@ -9,11 +9,11 @@ source = {
 description = {
   summary = "Pure Lua HTTP client for MongrelDB.",
   detailed = [[
-Pure Lua client for MongrelDB, the embedded and server database with SQL,
-vector search, full-text search, and AI-native retrieval. Talks JSON over the
-Kit transaction, query, and SQL endpoints of a running mongreldb-server
-daemon. Built on LuaSocket with a vendored JSON encoder, so the only external
-runtime dependency is luasocket.
+Pure Lua HTTP client for the MongrelDB server database with SQL, vector search,
+full-text search, and AI-native retrieval. Talks JSON over the Kit transaction,
+query, and SQL endpoints of a running mongreldb-server daemon. Built on
+LuaSocket with a vendored JSON encoder, so the only external runtime dependency
+is luasocket.
 ]],
   homepage = "https://www.mongreldb.com",
   license = "MIT OR Apache-2.0",

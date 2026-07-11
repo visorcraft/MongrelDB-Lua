@@ -216,6 +216,58 @@ else
     local desc = db:schemaFor(table)
     assert_equal(next(desc) ~= nil, true, "schemaFor should return a descriptor")
   end)
+
+  check("history retention: set window, write, update, and read older epoch", function()
+    local db = mongreldb.connect(SERVER_URL)
+    local table = "lua_retention_" .. unique
+
+    -- Configure a wide retention window so the original write epoch stays readable.
+    local set_result = db:setHistoryRetentionEpochs(1000)
+    assert_equal(type(set_result), "table",
+      "setHistoryRetentionEpochs should return a response table")
+    assert_equal(type(set_result.history_retention_epochs), "number",
+      "response should include history_retention_epochs")
+    assert_equal(type(set_result.earliest_retained_epoch), "number",
+      "response should include earliest_retained_epoch")
+
+    assert_equal(db:historyRetentionEpochs(), 1000,
+      "historyRetentionEpochs should reflect the set window")
+    assert_equal(db:earliestRetainedEpoch() <= 1000, true,
+      "earliestRetainedEpoch should not exceed the window")
+
+    db:createTable(table, {
+      { id = 1, name = "id", ty = "int64", primary_key = true, nullable = false },
+      { id = 2, name = "label", ty = "varchar", primary_key = false, nullable = false },
+    })
+
+    -- Write the initial row and capture the commit epoch from the raw txn response.
+    local write_resp = db:_post("kit/txn", {
+      ops = { { put = { table = table, cells = { 1, 1, 2, "first" } } } },
+    })
+    assert_equal(type(write_resp), "table", "txn response should be a table")
+    assert_equal(type(write_resp.epoch), "number", "txn response should include epoch")
+    local write_epoch = write_resp.epoch
+
+    -- Update the row and capture the newer commit epoch.
+    local update_resp = db:_post("kit/txn", {
+      ops = {
+        { upsert = { table = table, cells = { 1, 1, 2, "second" }, update_cells = { 2, "second" } } },
+      },
+    })
+    assert_equal(type(update_resp.epoch), "number", "update response should include epoch")
+    local update_epoch = update_resp.epoch
+    assert_equal(update_epoch > write_epoch, true, "update should advance the epoch")
+
+    -- Current value is the updated value.
+    local current = db:sql("SELECT label FROM " .. table .. " WHERE id = 1")
+    assert_equal(#current, 1, "current read should return one row")
+    assert_equal(current[1].label, "second", "current row should show updated value")
+
+    -- Historical read at the original write epoch should still see "first".
+    local historical = db:sql("SELECT label FROM " .. table .. " AS OF EPOCH " .. write_epoch .. " WHERE id = 1")
+    assert_equal(#historical, 1, "historical read should return one row")
+    assert_equal(historical[1].label, "first", "historical read should show original value")
+  end)
 end
 
 io.write("\n")

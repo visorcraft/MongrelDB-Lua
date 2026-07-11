@@ -293,6 +293,10 @@ function json.decode(s)
   local d = Decoder:new(s)
   local ok, value = pcall(function() return d:parse_value() end)
   if not ok then return nil, value end
+  d:skip_ws()
+  if d.i <= #d.s then
+    return nil, "trailing data after JSON value at position " .. d.i
+  end
   return value
 end
 

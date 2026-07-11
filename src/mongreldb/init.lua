@@ -81,10 +81,17 @@ end
 local function cells_to_flat(cells)
   local flat = {}
   local keys = {}
-  for k in pairs(cells) do table.insert(keys, k) end
-  table.sort(keys, function(a, b) return tonumber(a) < tonumber(b) end)
+  for k in pairs(cells) do
+    local nk = tonumber(k)
+    if nk == nil or math.floor(nk) ~= nk or nk < 1 then
+      error(make_error(M.errors.query,
+        "cell key must be a positive integer column id, got " .. tostring(k)), 2)
+    end
+    table.insert(keys, nk)
+  end
+  table.sort(keys, function(a, b) return a < b end)
   for _, k in ipairs(keys) do
-    table.insert(flat, tonumber(k))
+    table.insert(flat, k)
     table.insert(flat, cells[k])
   end
   return flat
@@ -101,13 +108,20 @@ local function normalize_condition(cond_type, params)
     max_inclusive = "hi_inclusive",
   }
   local out = {}
+  local seen = {}
   for k, v in pairs(params) do
     local key = k
     if (cond_type == "fm_contains" or cond_type == "fm_contains_all")
        and k == "value" then
       key = "pattern"
     end
-    out[aliases[key] or key] = v
+    local canonical = aliases[key] or key
+    if seen[canonical] then
+      error(make_error(M.errors.query,
+        "duplicate condition key '" .. canonical .. "' (alias collision)"), 2)
+    end
+    seen[canonical] = true
+    out[canonical] = v
   end
   return out
 end
@@ -330,8 +344,12 @@ local function retention(data)
 end
 
 function Client:setHistoryRetentionEpochs(epochs)
-  return retention(self:_request("PUT", "history/retention",
-    assert(json.encode({ history_retention_epochs = epochs }))))
+  local body, err = json.encode({ history_retention_epochs = epochs })
+  if not body then
+    error(make_error(M.errors.query,
+      "history retention payload cannot be JSON-encoded: " .. tostring(err)), 2)
+  end
+  return retention(self:_request("PUT", "history/retention", body))
 end
 
 function Client:historyRetention()
@@ -438,6 +456,7 @@ function Client:sql(statement)
   local err = data
   local msg = type(err) == "table" and err.message or tostring(err)
   if msg and msg:find("malformed JSON") then
+    io.stderr:write("mongreldb.sql warning: response was not valid JSON; returning empty result\n")
     return {}
   end
   error(err, 2)

@@ -4,10 +4,8 @@
 
 <h1 align="center">MongrelDB Lua Client</h1>
 
-History retention: `setHistoryRetentionEpochs`, `historyRetentionEpochs`, and `earliestRetainedEpoch`. Use `mongreldb.null` for explicit JSON null.
-
 <p align="center">
-  <b>Pure Lua client for MongrelDB, embedded and server database with SQL, vector search, full-text search, and AI-native retrieval.</b>
+  <b>Pure Lua HTTP client for the MongrelDB server database with SQL, vector search, full-text search, and AI-native retrieval.</b>
 </p>
 
 <p align="center">
@@ -24,7 +22,7 @@ History retention: `setHistoryRetentionEpochs`, `historyRetentionEpochs`, and `e
 
 ## Requirements
 
-- **Lua 5.3 or newer** (Lua 5.4 and LuaJIT supported)
+- **Lua 5.3 or newer**
 - **LuaSocket** (`luarocks install luasocket`) for the HTTP transport
 - The vendored JSON encoder has no further dependencies
 - A running [`mongreldb-server`](https://github.com/visorcraft/MongrelDB) daemon
@@ -80,9 +78,12 @@ db:put("orders", { [1] = 2, [2] = "Bob",   [3] = 150.00, [4] = "active" })
 db:upsert("orders", { [1] = 1, [2] = "Alice", [3] = 120.00, [4] = "active" },
   { [3] = 120.00 })
 
--- Query with a native index condition (learned-range index).
+-- Query with a native index condition (learned-range index on a float column).
 local rows = db:query("orders", {
-  mongreldb.condition("range", { column = 3, min = 100.0 }),
+  mongreldb.condition("range_f64", {
+    column = 3, min = 100.0, max = 200.0,
+    min_inclusive = true, max_inclusive = true,
+  }),
 }, { projection = { 1, 2 }, limit = 100 })
 
 print(db:count("orders")) -- 2
@@ -129,16 +130,26 @@ db:transaction(ops2, "order-20-create")
 
 Conditions push down to the engine's specialized indexes. `mongreldb.condition`
 accepts friendly aliases that are translated to the server's on-wire keys:
-`column` (to `column_id`), `min`/`max` (to `lo`/`hi`). The canonical keys are
-also accepted directly.
+`column` (to `column_id`), `min`/`max` (to `lo`/`hi`),
+`min_inclusive`/`max_inclusive` (to `lo_inclusive`/`hi_inclusive`). The canonical
+keys are also accepted directly. Use `range` for integer columns and `range_f64`
+for float64 columns.
 
 ```lua
 -- Bitmap equality (low-cardinality columns).
 db:query("orders", { mongreldb.condition("bitmap_eq", { column = 2, value = "Alice" }) })
 
--- Range query (learned-range index).
+-- Range query on a float64 column (use `range` for integer columns).
 db:query("orders", {
-  mongreldb.condition("range", { column = 3, min = 50.0, max = 150.0 }),
+  mongreldb.condition("range_f64", {
+    column = 3, min = 50.0, max = 150.0,
+    min_inclusive = true, max_inclusive = true,
+  }),
+}, { limit = 100 })
+
+-- Range query on an integer column.
+db:query("orders", {
+  mongreldb.condition("range", { column = 1, min = 1, max = 100 }),
 }, { limit = 100 })
 
 -- Full-text search (FM-index).
@@ -153,7 +164,10 @@ db:query("embeddings", {
 
 -- Check whether a result was capped by the limit.
 local rows, truncated = db:query("orders",
-  { mongreldb.condition("range", { column = 3, min = 0 }) },
+  { mongreldb.condition("range_f64", {
+      column = 3, min = 0.0, max = 9999.0,
+      min_inclusive = true, max_inclusive = true,
+    }) },
   { limit = 100 })
 if truncated then
   -- result set hit the limit; more matches exist on the server.
@@ -217,6 +231,7 @@ end
 | `mongreldb.connect(url, opts)` | Connect to a daemon |
 | `mongreldb.condition(type, params)` | Build a normalized condition |
 | `mongreldb.json` | The vendored JSON module |
+| `mongreldb.null` | JSON-null sentinel for explicit `null` values |
 | `mongreldb.errors` | Error-type string constants |
 
 ### `Client` object (from `connect`)
@@ -225,7 +240,7 @@ end
 |---|---|
 | `health()` | Check daemon health |
 | `tableNames()` | List table names |
-| `createTable(name, columns)` | Create a table, returns table id |
+| `createTable(name, columns, constraints?)` | Create a table, returns table id |
 | `dropTable(name)` | Drop a table |
 | `count(table)` | Row count |
 | `put(table, cells)` | Insert a row |
@@ -238,6 +253,50 @@ end
 | `schemaFor(table)` | Single table schema |
 | `compact()` | Compact all tables |
 | `transaction(ops, idempotency_key)` | Commit a batch atomically |
+| `historyRetention()` | Get the full history retention response |
+| `setHistoryRetentionEpochs(epochs)` | Set the history retention window |
+| `historyRetentionEpochs()` | Get the current retention window |
+| `earliestRetainedEpoch()` | Get the oldest readable epoch |
+
+## History retention
+
+Control how far back time-travel queries can read. The window is measured in
+epochs (monotonically increasing commit numbers).
+
+```lua
+-- Keep at least 1000 epochs of history readable.
+db:setHistoryRetentionEpochs(1000)
+
+print(db:historyRetentionEpochs()) -- 1000
+print(db:earliestRetainedEpoch())  -- oldest epoch still available
+
+-- Read a table as it existed at a specific epoch.
+local rows = db:sql("SELECT label FROM orders AS OF EPOCH 42 WHERE id = 1")
+```
+
+These endpoints require admin privileges when the daemon runs with auth enabled.
+Raising retention prevents history from being garbage collected, but it cannot
+restore epochs that have already been pruned.
+
+## Static defaults and explicit null
+
+Column descriptors can carry a literal `default_value` or a dynamic
+`default_expr`. Use `mongreldb.null` when you need an explicit JSON `null`
+because Lua `nil` removes the key from the table.
+
+```lua
+db:createTable("orders", {
+  { id = 1, name = "id",       ty = "int64",   primary_key = true, nullable = false },
+  { id = 2, name = "status",   ty = "varchar", default_value = "draft" },
+  { id = 3, name = "attempts", ty = "int64",   default_value = 3 },
+  { id = 4, name = "active",   ty = "bool",    default_value = true },
+  { id = 5, name = "notes",    ty = "varchar", default_value = mongreldb.null },
+  { id = 6, name = "created",  ty = "timestamp_nanos", default_expr = "now" },
+})
+```
+
+`default_expr` accepts only `"now"` or `"uuid"`; everything else is a static
+literal. A literal `"now"` string in `default_value` remains a string default.
 
 ## Building and testing
 

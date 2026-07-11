@@ -66,6 +66,36 @@ local rows = db:query("orders", {
 })
 ```
 
+## Column defaults and explicit null
+
+Static defaults are sent as typed JSON values. Use `mongreldb.null` for an
+explicit JSON `null`; plain Lua `nil` would drop the key from the descriptor.
+Dynamic defaults use `default_expr`.
+
+```lua
+db:createTable("orders", {
+  { id = 1, name = "id",       ty = "int64",   primary_key = true, nullable = false },
+  { id = 2, name = "status",   ty = "varchar", default_value = "draft" },
+  { id = 3, name = "attempts", ty = "int64",   default_value = 3 },
+  { id = 4, name = "active",   ty = "bool",    default_value = true },
+  { id = 5, name = "notes",    ty = "varchar", default_value = mongreldb.null },
+  { id = 6, name = "created",  ty = "timestamp_nanos", default_expr = "now" },
+})
+```
+
+## History retention
+
+Set how many epochs of history remain readable for `AS OF EPOCH` queries.
+
+```lua
+db:setHistoryRetentionEpochs(1000)
+print(db:historyRetentionEpochs()) -- 1000
+print(db:earliestRetainedEpoch())  -- oldest retained epoch
+
+-- Read the table as it existed at epoch 42.
+local historical = db:sql("SELECT * FROM orders AS OF EPOCH 42")
+```
+
 ## Next steps
 
 - [Transactions](transactions.md) for atomic multi-op commits.
