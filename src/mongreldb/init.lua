@@ -292,6 +292,7 @@ function Client:_request(method, path, body)
   local message, code, op_index = parse_error_envelope(resp_body)
   if message == "" then message = "Server error (" .. status .. ")" end
   local kind = kind_for_status(status)
+  if message:sub(1, 10) == "not found:" then kind = M.errors.not_found end
   error(make_error(kind, message,
     { error_code = code, op_index = op_index, status = status }), 2)
 end
