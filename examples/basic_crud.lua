@@ -28,11 +28,16 @@ local ok, err = pcall(function()
     { id = 1, name = "id", ty = "int64", primary_key = true, nullable = false },
     { id = 2, name = "label", ty = "varchar", primary_key = false, nullable = false },
     { id = 3, name = "amount", ty = "float64", primary_key = false, nullable = false },
-    -- Enum column: variants ride on the column descriptor, default_value
-    -- (server alias for default_expr) seeds new rows.
+    -- Enum column: variants ride on the column descriptor.
     { id = 4, name = "status", ty = "enum",
-      enum_variants = { "active", "paused", "archived" },
-      default_value = "active" },
+      enum_variants = { "active", "paused", "archived" } },
+    -- The daemon accepts "now" and "uuid" default expressions.
+    { id = 5, name = "created_at", ty = "timestamp_nanos",
+      default_value = "now" },
+  }, {
+    checks = {
+      { id = 1, name = "id_present", expr = { IsNotNull = 1 } },
+    },
   })
 
   db:put(table_name, { [1] = 1, [2] = "first",  [3] = 10.0, [4] = "active" })

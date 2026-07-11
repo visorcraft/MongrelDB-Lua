@@ -61,8 +61,13 @@ db:createTable("orders", {
   -- Enum columns carry their variants on the column descriptor, and a
   -- default_value (server alias for default_expr) is also accepted.
   { id = 4, name = "status",   ty = "enum",
-    enum_variants = { "active", "paused", "archived" },
-    default_value = "active" },
+    enum_variants = { "active", "paused", "archived" } },
+  { id = 5, name = "created_at", ty = "timestamp_nanos",
+    default_value = "now" },
+}, {
+  checks = {
+    { id = 1, name = "id_present", expr = { IsNotNull = 1 } },
+  },
 })
 
 -- Insert rows. Cells map column id to value.

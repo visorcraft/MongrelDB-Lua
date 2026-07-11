@@ -65,10 +65,20 @@ check("createTable body includes enum_variants and default_value verbatim", func
       name = "status",
       ty = "enum",
       enum_variants = { "active", "paused", "archived" },
-      default_value = "active",
+    },
+    {
+      id = 3,
+      name = "created_at",
+      ty = "timestamp_nanos",
+      default_value = "now",
     },
   }
-  local body = mongreldb._build_create_table_body("orders", columns)
+  local constraints = {
+    checks = {
+      { id = 1, name = "id_present", expr = { IsNotNull = 1 } },
+    },
+  }
+  local body = mongreldb._build_create_table_body("orders", columns, constraints)
   assert_true(json_contains_key(body, "enum_variants"),
     "enum_variants should appear verbatim in the JSON body")
   assert_true(json_contains_key(body, "default_value"),
@@ -78,6 +88,12 @@ check("createTable body includes enum_variants and default_value verbatim", func
     "enum variant value should be present")
   assert_true(body:find('"paused"') ~= nil,
     "enum variant value should be present")
+  assert_true(json_contains_key(body, "constraints"),
+    "constraints should appear in the JSON body")
+  assert_true(json_contains_key(body, "checks"),
+    "constraints.checks should appear in the JSON body")
+  assert_true(json_contains_key(body, "IsNotNull"),
+    "check expression should appear in the JSON body")
 end)
 
 check("createTable body omits enum_variants and default_value when unset", function()
