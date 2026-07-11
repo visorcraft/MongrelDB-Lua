@@ -44,7 +44,7 @@ db:createTable("orders", {
   { id = 2, name = "customer", ty = "varchar", primary_key = false, nullable = false },
   { id = 3, name = "amount",   ty = "float64", primary_key = false, nullable = false },
   -- Enum columns carry their variants on the column descriptor, and a
-  -- default_value (server alias for default_expr) seeds new rows.
+  -- scalar default_value or dynamic default_expr seeds new rows.
   { id = 4, name = "status",   ty = "enum",
     enum_variants = { "active", "paused", "archived" },
     default_value = "active" },

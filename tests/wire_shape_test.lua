@@ -1,8 +1,8 @@
 -- Wire-shape conformance tests for the MongrelDB Lua client.
 --
 -- The /kit/create_table endpoint accepts a rich column descriptor that
--- includes `enum_variants` and `default_value` (alias for `default_expr`
--- on the server). These tests pin the JSON the Lua client emits so a
+-- includes `enum_variants`, scalar `default_value`, and dynamic
+-- `default_expr`. These tests pin the JSON the Lua client emits so a
 -- future encoder change cannot silently strip those keys on the way to
 -- the daemon.
 --
@@ -51,7 +51,7 @@ local function json_contains_key(body, key)
   return body:find('"' .. key .. '"') ~= nil
 end
 
-check("createTable body includes enum_variants and default_value verbatim", function()
+check("createTable body preserves enum, static-default, and dynamic-default fields", function()
   local columns = {
     {
       id = 1,
@@ -70,7 +70,13 @@ check("createTable body includes enum_variants and default_value verbatim", func
       id = 3,
       name = "created_at",
       ty = "timestamp_nanos",
-      default_value = "now",
+      default_expr = "now",
+    },
+    {
+      id = 4,
+      name = "attempts",
+      ty = "int64",
+      default_value = 3,
     },
   }
   local constraints = {
@@ -83,6 +89,10 @@ check("createTable body includes enum_variants and default_value verbatim", func
     "enum_variants should appear verbatim in the JSON body")
   assert_true(json_contains_key(body, "default_value"),
     "default_value should appear verbatim in the JSON body")
+  assert_true(body:find('"default_value":3') ~= nil,
+    "default_value should preserve its numeric JSON type")
+  assert_true(body:find('"default_expr":"now"') ~= nil,
+    "default_expr should appear verbatim in the JSON body")
   -- Values must also survive the round-trip.
   assert_true(body:find('"active"') ~= nil,
     "enum variant value should be present")
