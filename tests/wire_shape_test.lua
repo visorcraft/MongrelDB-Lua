@@ -63,12 +63,12 @@ local function mock_socket(responses)
     local req = { host = host, port = port, raw = "" }
     table.insert(state.requests, req)
     local conn = {}
-    function conn:settimeout(t) end
-    function conn:send(data)
+    function conn.settimeout(_, _) end
+    function conn.send(_, data)
       req.raw = req.raw .. data
       return #data, nil
     end
-    function conn:receive(n)
+    function conn.receive(_, _)
       local entry = responses[state.index]
       if not entry then
         return nil, "closed", ""
@@ -90,7 +90,7 @@ local function mock_socket(responses)
       end
       return nil, "closed", ""
     end
-    function conn:close() end
+    function conn.close(_) end
     return conn
   end
 
@@ -326,7 +326,6 @@ check("history retention methods propagate non-2xx responses as errors", functio
     local function catch(fn)
       return pcall(function() fn() end)
     end
-    threw, err = false, nil
     local cok, cerr = catch(function() db:historyRetentionEpochs() end)
     if not cok then threw = true; err = cerr end
     assert_equal(threw, true, "historyRetentionEpochs should throw on 503")
