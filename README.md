@@ -247,7 +247,7 @@ end
 | `upsert(table, cells, update_cells)` | Upsert a row |
 | `delete(table, rowId)` | Delete by row ID |
 | `deleteByPk(table, pk)` | Delete by primary key |
-| `query(table, conditions, opts)` | Run a native query |
+| `query(table, conditions, opts)` | Run a native query; opts include `limit` and `offset` |
 | `sql(statement)` | Execute SQL |
 | `schema()` | Full schema catalog |
 | `schemaFor(table)` | Single table schema |

@@ -463,7 +463,7 @@ function Client:sql(statement)
 end
 
 --- Run a native query. conditions is a list of {type = params} tables.
---- Optional: projection (array of column ids), limit (int).
+--- Optional: projection (array of column ids), limit (int), offset (int).
 function Client:query(table_name, conditions, opts)
   opts = opts or {}
   local payload = { table = table_name }
@@ -473,6 +473,7 @@ function Client:query(table_name, conditions, opts)
   end
   if opts.projection then payload.projection = opts.projection end
   if opts.limit then payload.limit = opts.limit end
+  if opts.offset then payload.offset = opts.offset end
   local data = self:_post("kit/query", payload)
   if type(data) == "table" then
     return data.rows or {}, data.truncated or false
