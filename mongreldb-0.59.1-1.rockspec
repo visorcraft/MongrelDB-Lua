@@ -1,17 +1,9 @@
 package = "mongreldb"
-<<<<<<<< HEAD:mongreldb-0.58.3-1.rockspec
-version = "0.58.3-1"
+version = "0.60.2-1"
 
 source = {
   url = "git://github.com/visorcraft/MongrelDB-Lua.git",
-  tag = "v0.58.3",
-========
-version = "0.59.1-1"
-
-source = {
-  url = "git://github.com/visorcraft/MongrelDB-Lua.git",
-  tag = "v0.59.1",
->>>>>>>> 28272785322616703bbe8175e4f684a456c1c9e2:mongreldb-0.59.1-1.rockspec
+  tag = "v0.60.2",
 }
 
 description = {
