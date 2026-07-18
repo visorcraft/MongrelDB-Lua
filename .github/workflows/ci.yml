@@ -91,13 +91,13 @@ jobs:
         id: server-cache
         with:
           path: /tmp/mongreldb-server
-          key: mongreldb-server-${{ runner.os }}-0.60.2
+          key: mongreldb-server-${{ runner.os }}-0.60.3
 
       - name: Download mongreldb-server
         if: steps.server-cache.outputs.cache-hit != 'true'
         run: |
           curl -L -o /tmp/mongreldb-server \
-            https://github.com/visorcraft/MongrelDB/releases/download/v0.60.2/mongreldb-server-linux-x64
+            https://github.com/visorcraft/MongrelDB/releases/download/v0.60.3/mongreldb-server-linux-x64
           chmod +x /tmp/mongreldb-server
 
       - name: Start mongreldb-server
