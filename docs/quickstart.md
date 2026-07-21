@@ -12,7 +12,7 @@ running `mongreldb-server`, and doing your first round-trip of CRUD and query.
 
   ```sh
   curl -L -o mongreldb-server \
-    https://github.com/visorcraft/MongrelDB/releases/download/v0.62.0/mongreldb-server-linux-x64
+    https://github.com/visorcraft/MongrelDB/releases/download/v0.63.0/mongreldb-server-linux-x64
   chmod +x mongreldb-server
   ./mongreldb-server ./data --port 8453
   ```

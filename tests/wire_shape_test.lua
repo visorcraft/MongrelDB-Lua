@@ -158,7 +158,8 @@ check("createTable body preserves enum, static-default, and dynamic-default fiel
       column_id = 8,
       kind = "ann",
       predicate = "embedding IS NOT NULL",
-      options = { ann = { m = 24, ef_construction = 96, ef_search = 48, quantization = "dense" } },
+      options = { ann = { m = 24, ef_construction = 96, ef_search = 48, quantization = "dense",
+        algorithm = "diskann", diskann = { r = 64, l = 128, beam_width = 8, alpha = 120 } } },
     },
     { name = "range", column_id = 4, kind = "learned_range" },
     { name = "minhash", column_id = 2, kind = "minhash" },
@@ -192,6 +193,8 @@ check("createTable body preserves enum, static-default, and dynamic-default fiel
     assert_true(body:find('"kind":"' .. kind .. '"') ~= nil, kind .. " index missing")
   end
   assert_true(body:find('"quantization":"dense"') ~= nil, "Dense ANN missing")
+  assert_true(body:find('"algorithm":"diskann"') ~= nil, "DiskANN algorithm missing")
+  assert_true(body:find('"beam_width":8') ~= nil, "DiskANN options missing")
   assert_true(body:find('"predicate":"embedding IS NOT NULL"') ~= nil,
     "index predicate missing")
 end)
