@@ -133,13 +133,38 @@ check("createTable body preserves enum, static-default, and dynamic-default fiel
     { id = 5, name = "s", ty = "varchar", default_value = "draft" },
     { id = 6, name = "b", ty = "bool", default_value = true },
     { id = 7, name = "n", ty = "varchar", default_value = mongreldb.null },
+    {
+      id = 8,
+      name = "embedding",
+      ty = "embedding(384)",
+      embedding_source = {
+        kind = "configured_model",
+        provider_id = "docs",
+        model_id = "model",
+        model_version = "1",
+      },
+    },
   }
   local constraints = {
     checks = {
       { id = 1, name = "id_present", expr = { IsNotNull = 1 } },
     },
   }
-  local body = mongreldb._build_create_table_body("orders", columns, constraints)
+  local indexes = {
+    { name = "bm", column_id = 2, kind = "bitmap" },
+    { name = "fm", column_id = 2, kind = "fm_index" },
+    {
+      name = "ann",
+      column_id = 8,
+      kind = "ann",
+      predicate = "embedding IS NOT NULL",
+      options = { ann = { m = 24, ef_construction = 96, ef_search = 48, quantization = "dense" } },
+    },
+    { name = "range", column_id = 4, kind = "learned_range" },
+    { name = "minhash", column_id = 2, kind = "minhash" },
+    { name = "sparse", column_id = 2, kind = "sparse" },
+  }
+  local body = mongreldb._build_create_table_body("orders", columns, constraints, indexes)
   assert_true(json_contains_key(body, "enum_variants"),
     "enum_variants should appear verbatim in the JSON body")
   assert_true(json_contains_key(body, "default_value"),
@@ -162,6 +187,13 @@ check("createTable body preserves enum, static-default, and dynamic-default fiel
     "constraints.checks should appear in the JSON body")
   assert_true(json_contains_key(body, "IsNotNull"),
     "check expression should appear in the JSON body")
+  assert_true(body:find('"embedding_source"') ~= nil, "embedding source missing")
+  for _, kind in ipairs({ "bitmap", "fm_index", "ann", "learned_range", "minhash", "sparse" }) do
+    assert_true(body:find('"kind":"' .. kind .. '"') ~= nil, kind .. " index missing")
+  end
+  assert_true(body:find('"quantization":"dense"') ~= nil, "Dense ANN missing")
+  assert_true(body:find('"predicate":"embedding IS NOT NULL"') ~= nil,
+    "index predicate missing")
 end)
 
 check("createTable body omits enum_variants and default_value when unset", function()

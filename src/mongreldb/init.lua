@@ -364,9 +364,10 @@ function Client:earliestRetainedEpoch() return self:historyRetention().earliest_
 -- exact on-wire keys (`enum_variants`, `default_value`, ...) without
 -- standing up a daemon or a socket mock. The helper is the single source
 -- of truth for the payload; Client:createTable delegates to it.
-function M._build_create_table_body(name, columns, constraints)
+function M._build_create_table_body(name, columns, constraints, indexes)
   local payload = { name = name, columns = columns }
   if constraints ~= nil then payload.constraints = constraints end
+  if indexes ~= nil then payload.indexes = indexes end
   local body, err = json.encode(payload)
   if not body then
     error(make_error(M.errors.query,
@@ -376,8 +377,8 @@ function M._build_create_table_body(name, columns, constraints)
 end
 
 --- Create a table. Returns the new table id, or 0 if none was reported.
-function Client:createTable(name, columns, constraints)
-  local body = M._build_create_table_body(name, columns, constraints)
+function Client:createTable(name, columns, constraints, indexes)
+  local body = M._build_create_table_body(name, columns, constraints, indexes)
   local data = self:_request("POST", "kit/create_table", body)
   if type(data) == "table" then return data.table_id or 0 end
   return 0
