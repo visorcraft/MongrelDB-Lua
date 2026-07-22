@@ -440,6 +440,144 @@ function Client:deleteByPk(table_name, pk)
   })
 end
 
+--- Structural HLC from durable recovery (0.64+). No free-form string parsing.
+function M.parse_commit_hlc(raw)
+  if type(raw) ~= "table" or raw.physical_micros == nil then
+    return nil
+  end
+  return {
+    physical_micros = tonumber(raw.physical_micros) or 0,
+    logical = tonumber(raw.logical) or 0,
+    node_tiebreaker = tonumber(raw.node_tiebreaker) or 0,
+  }
+end
+
+local function parse_durable_outcome(raw)
+  if type(raw) ~= "table" then
+    return {
+      committed = nil,
+      last_commit_epoch = nil,
+      last_commit_hlc = nil,
+      serialization = "",
+      serialization_state = nil,
+      terminal_state = nil,
+    }
+  end
+  return {
+    committed = raw.committed,
+    committed_statements = raw.committed_statements,
+    last_commit_epoch = raw.last_commit_epoch,
+    last_commit_epoch_text = raw.last_commit_epoch_text,
+    last_commit_hlc = M.parse_commit_hlc(raw.last_commit_hlc),
+    first_commit_statement_index = raw.first_commit_statement_index,
+    last_commit_statement_index = raw.last_commit_statement_index,
+    completed_statements = raw.completed_statements,
+    statement_index = raw.statement_index,
+    serialization = tostring(raw.serialization or ""),
+    serialization_state = raw.serialization_state,
+    terminal_state = raw.terminal_state,
+  }
+end
+
+--- Decode GET /queries/{id} body into a structural status (0.64+).
+function M.parse_query_status(raw)
+  if type(raw) ~= "table" then
+    raw = {}
+  end
+  local outcome = parse_durable_outcome(raw.outcome)
+  local durable = type(raw.durable) == "table" and parse_durable_outcome(raw.durable) or nil
+  local top_hlc = M.parse_commit_hlc(raw.last_commit_hlc)
+  local status = {
+    query_id = tostring(raw.query_id or ""),
+    status = tostring(raw.status or ""),
+    state = tostring(raw.state or ""),
+    server_state = tostring(raw.server_state or raw.state or ""),
+    terminal_state = raw.terminal_state,
+    committed = raw.committed,
+    committed_statements = raw.committed_statements,
+    last_commit_epoch = raw.last_commit_epoch,
+    last_commit_hlc = top_hlc,
+    outcome = outcome,
+    durable = durable,
+    raw = raw,
+  }
+  function status:commit_hlc()
+    if self.durable and self.durable.last_commit_hlc then
+      return self.durable.last_commit_hlc
+    end
+    if self.outcome and self.outcome.last_commit_hlc then
+      return self.outcome.last_commit_hlc
+    end
+    return self.last_commit_hlc
+  end
+  function status:serialization_state()
+    if self.durable then
+      if self.durable.serialization_state and self.durable.serialization_state ~= "" then
+        return tostring(self.durable.serialization_state)
+      end
+      if self.durable.serialization and self.durable.serialization ~= "" then
+        return tostring(self.durable.serialization)
+      end
+    end
+    if self.outcome then
+      if self.outcome.serialization_state and self.outcome.serialization_state ~= "" then
+        return tostring(self.outcome.serialization_state)
+      end
+      return tostring(self.outcome.serialization or "")
+    end
+    return ""
+  end
+  return status
+end
+
+--- Text → embed → ANN retrieve (POST kit/retrieve_text, 0.64+).
+function Client:retrieve_text(table_name, embedding_column, text, opts)
+  opts = opts or {}
+  if not table_name or table_name == "" then
+    error(make_error(M.errors.query, "table is required"), 2)
+  end
+  if not text or text == "" then
+    error(make_error(M.errors.query, "text is required"), 2)
+  end
+  local payload = {
+    table = table_name,
+    embedding_column = tonumber(embedding_column) or 0,
+    text = text,
+  }
+  if opts.k then payload.k = opts.k end
+  if opts.deadline_ms then payload.deadline_ms = opts.deadline_ms end
+  if opts.max_work then payload.max_work = opts.max_work end
+  local data = self:_post("kit/retrieve_text", payload)
+  if type(data) ~= "table" then
+    return { hits = {}, provenance = {} }
+  end
+  return {
+    hits = data.hits or {},
+    provenance = data.provenance or {},
+  }
+end
+
+--- Retained SQL status for durable recovery (GET queries/{query_id}).
+function Client:query_status(query_id)
+  if not query_id or query_id == "" then
+    error(make_error(M.errors.query, "query_id is required"), 2)
+  end
+  local data = self:_request("GET", "queries/" .. encode_path_segment(query_id))
+  if type(data) ~= "table" then
+    error(make_error(M.errors.query, "query status response was not a JSON object"), 2)
+  end
+  return M.parse_query_status(data)
+end
+
+--- Request cancellation of a running SQL query (POST queries/{id}/cancel).
+function Client:cancel_query(query_id)
+  if not query_id or query_id == "" then
+    error(make_error(M.errors.query, "query_id is required"), 2)
+  end
+  local data = self:_post("queries/" .. encode_path_segment(query_id) .. "/cancel", {})
+  return type(data) == "table" and data or {}
+end
+
 --- Execute SQL. Requests the JSON result format, so a SELECT returns a JSON
 --- array of row objects keyed by column name. Returns decoded rows for SELECTs,
 --- or an empty table for statements (INSERT/UPDATE) that produce no rows.
