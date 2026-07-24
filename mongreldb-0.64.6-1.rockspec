@@ -1,9 +1,9 @@
 package = "mongreldb"
-version = "0.64.5-1"
+version = "0.64.6-1"
 
 source = {
   url = "git://github.com/visorcraft/MongrelDB-Lua.git",
-  tag = "v0.64.5",
+  tag = "v0.64.6",
 }
 
 description = {
