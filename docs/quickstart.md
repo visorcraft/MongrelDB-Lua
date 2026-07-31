@@ -19,10 +19,13 @@ running `mongreldb-server`, and doing your first round-trip of CRUD and query.
 
 ## Install
 
-Install via LuaRocks:
+The client is not on LuaRocks yet, so install from source. The rockspec
+ships in the repo, so clone and build from the checkout:
 
 ```sh
-luarocks install mongreldb
+git clone https://github.com/visorcraft/MongrelDB-Lua.git
+cd MongrelDB-Lua
+luarocks make mongreldb-0.64.14-1.rockspec
 ```
 
 The client has a single runtime dependency (LuaSocket) and ships a vendored
