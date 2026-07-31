@@ -25,7 +25,7 @@ ships in the repo, so clone and build from the checkout:
 ```sh
 git clone https://github.com/visorcraft/MongrelDB-Lua.git
 cd MongrelDB-Lua
-luarocks make mongreldb-0.64.14-1.rockspec
+luarocks make mongreldb-0.64.15-1.rockspec
 ```
 
 The client has a single runtime dependency (LuaSocket) and ships a vendored
