@@ -9,7 +9,6 @@
 </p>
 
 <p align="center">
-  <a href="https://luarocks.org/modules/visorcraft/mongreldb"><img src="https://img.shields.io/badge/luarocks-mongreldb-2C2D72.svg" alt="LuaRocks" /></a>
   <a href="https://www.lua.org/"><img src="https://img.shields.io/badge/Lua-%3E%3D5.3-000080.svg" alt="Lua" /></a>
   <a href="#license"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="License" /></a>
 </p>
@@ -18,7 +17,15 @@
 
 | Surface | Package | Install |
 |---|---|---|
-| Lua client | `mongreldb` | `luarocks install mongreldb` |
+| Lua client | `mongreldb` | not on LuaRocks yet - install from source (below) |
+
+The rockspec ships in this repo, so clone and build from the checkout:
+
+```sh
+git clone https://github.com/visorcraft/MongrelDB-Lua.git
+cd MongrelDB-Lua
+luarocks make mongreldb-0.64.14-1.rockspec
+```
 
 ## Requirements
 
