@@ -24,7 +24,7 @@ The rockspec ships in this repo, so clone and build from the checkout:
 ```sh
 git clone https://github.com/visorcraft/MongrelDB-Lua.git
 cd MongrelDB-Lua
-luarocks make mongreldb-0.64.16-1.rockspec
+luarocks make mongreldb-0.64.17-1.rockspec
 ```
 
 ## Requirements
