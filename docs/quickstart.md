@@ -12,7 +12,7 @@ running `mongreldb-server`, and doing your first round-trip of CRUD and query.
 
   ```sh
   curl -L -o mongreldb-server \
-    https://github.com/visorcraft/MongrelDB/releases/download/v0.65.0/mongreldb-server-linux-x64
+    https://github.com/visorcraft/MongrelDB/releases/download/v0.65.1/mongreldb-server-linux-x64
   chmod +x mongreldb-server
   ./mongreldb-server ./data --port 8453
   ```
@@ -25,7 +25,7 @@ ships in the repo, so clone and build from the checkout:
 ```sh
 git clone https://github.com/visorcraft/MongrelDB-Lua.git
 cd MongrelDB-Lua
-luarocks make mongreldb-0.65.0-1.rockspec
+luarocks make mongreldb-0.65.1-1.rockspec
 ```
 
 The client has a single runtime dependency (LuaSocket) and ships a vendored
